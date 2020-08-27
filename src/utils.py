@@ -1,11 +1,12 @@
 import os
 import time
+import csv
 import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
-from src.aws_utils import download
+from src.aws_utils import download, upload_to_s3
 
 
 def is_development() -> bool:
@@ -39,7 +40,8 @@ def initialize_browser() -> object:
     chrome_options.add_argument('--window-size=1920x1080')
     chrome_options.add_argument('--ignore-certificate-errors')
     chrome_options.add_argument(
-        'user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36')
+        'user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 '
+        'Safari/537.36')
     proxy_url = "127.0.0.1:24001"
     proxy = Proxy()
     proxy.proxy_type = ProxyType.MANUAL
@@ -64,6 +66,30 @@ def initialize_browser() -> object:
         chrome_options.add_argument('--headless')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-gpu')
-        return webdriver.Chrome(chrome_options=chrome_options,desired_capabilities=capabilities)
+        return webdriver.Chrome(chrome_options=chrome_options, desired_capabilities=capabilities)
 
 
+def export_file_credential(name) -> []:
+    download('configFile/BotCredentialsSession.csv', 'tmp/BotCredentialsSession.csv')
+    with open('tmp/BotCredentialsSession.csv', 'r', ) as file:
+        reader = csv.reader(file, delimiter=';')
+        for row in reader:
+            if row[0] == name:
+                return row
+
+
+def update_credentials(new_row):
+    file_array = []
+    download('configFile/BotCredentialsSession.csv', 'tmp/BotCredentialsSession.csv')
+    with open('tmp/BotCredentialsSession.csv', 'r', ) as file:
+        reader = csv.reader(file, delimiter=';')
+        for row in reader:
+            if row[0] == new_row[0]:
+                file_array.append(new_row)
+            else:
+                file_array.append(row)
+    with open('tmp/BotCredentialsSession2.csv', 'w', newline='') as new_file:
+        writer = csv.writer(new_file, delimiter=';')
+        for row in file_array:
+            writer.writerow(row)
+    upload_to_s3('tmp/BotCredentialsSession2.csv', 'configFile/BotCredentialsSession.csv')
